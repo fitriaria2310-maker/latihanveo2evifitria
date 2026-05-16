@@ -1,7 +1,9 @@
 const products = [
-  {id:1,title:'Kitab Tauhid',price:30000,desc:'Kitab dasar aqidah untuk pemula',img:'https://via.placeholder.com/400x300?text=Tauhid'},
-  {id:2,title:'Kitab Fiqih',price:45000,desc:'Kitab fiqih ringkas praktis',img:'https://via.placeholder.com/400x300?text=Fiqih'},
-  {id:3,title:'Kitab Akhlak',price:25000,desc:'Panduan akhlak dan adab santri',img:'https://via.placeholder.com/400x300?text=Akhlak'}
+  {id:1,title:'Kitab Tauhid',price:30000,desc:'Kitab dasar aqidah untuk pemula',img:'https://via.placeholder.com/600x400?text=Tauhid',type:'Aqidah',estimate:3},
+  {id:2,title:'Kitab Fiqih',price:45000,desc:'Kitab fiqih ringkas praktis untuk masalah sehari-hari',img:'https://via.placeholder.com/600x400?text=Fiqih',type:'Fiqih',estimate:4},
+  {id:3,title:'Kitab Akhlak',price:25000,desc:'Panduan akhlak dan adab santri',img:'https://via.placeholder.com/600x400?text=Akhlak',type:'Akhlak',estimate:2},
+  {id:4,title:'Kitab Bahasa Arab',price:38000,desc:'Pengantar nahwu dan shorof dasar',img:'https://via.placeholder.com/600x400?text=Bahasa+Arab',type:'Bahasa',estimate:5},
+  {id:5,title:'Tafsir Ringkas',price:55000,desc:'Tafsir pilihan untuk pemula dan pembelajaran halaqah',img:'https://via.placeholder.com/600x400?text=Tafsir',type:'Tafsir',estimate:6}
 ]
 
 const productsEl = document.getElementById('products')
@@ -12,20 +14,49 @@ const closeCart = document.getElementById('close-cart')
 const cartItemsEl = document.getElementById('cart-items')
 const cartTotalEl = document.getElementById('cart-total')
 const checkoutBtn = document.getElementById('checkout-btn')
+const cartEstimateEl = document.getElementById('cart-estimate')
+
+const detailModal = document.getElementById('detail-modal')
+const closeDetail = document.getElementById('close-detail')
+const detailImg = document.getElementById('detail-img')
+const detailTitle = document.getElementById('detail-title')
+const detailDesc = document.getElementById('detail-desc')
+const detailPrice = document.getElementById('detail-price')
+const detailType = document.getElementById('detail-type')
+const detailEstimate = document.getElementById('detail-estimate')
+const detailAdd = document.getElementById('detail-add')
+const detailClose = document.getElementById('detail-close')
+
+const filterType = document.getElementById('filter-type')
+const searchInput = document.getElementById('search')
 
 let cart = JSON.parse(localStorage.getItem('cart')||'[]')
+let currentDetailId = null
 
-function renderProducts(){
+function formatPrice(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.')}
+
+function uniqueTypes(){
+  const types = new Set(products.map(p=>p.type))
+  return ['all',...types]
+}
+
+function renderFilters(){
+  const types = uniqueTypes()
+  filterType.innerHTML = types.map(t=>`<option value="${t}">${t==='all'? 'Semua' : t}</option>`).join('')
+}
+
+function renderProducts(list=products){
   productsEl.innerHTML = ''
-  products.forEach(p=>{
+  list.forEach(p=>{
     const card = document.createElement('article')
     card.className = 'card'
     card.innerHTML = `
       <img src="${p.img}" alt="${p.title}">
+      <div class="meta-row"><div class="badge">${p.type}</div><div class="price">Rp ${formatPrice(p.price)}</div></div>
       <h4>${p.title}</h4>
       <p>${p.desc}</p>
-      <div class="price">Rp ${formatPrice(p.price)}</div>
-      <div style="margin-top:.5rem">
+      <div style="margin-top:.6rem;display:flex;gap:.5rem">
+        <button class="btn primary detail-btn" data-id="${p.id}">Lihat</button>
         <button class="btn add-btn" data-id="${p.id}">Tambah ke keranjang</button>
       </div>
     `
@@ -33,49 +64,66 @@ function renderProducts(){
   })
 }
 
-function formatPrice(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.')}
-
 function updateCartCount(){
   const count = cart.reduce((s,i)=>s+i.qty,0)
   cartCount.textContent = count
 }
 
-function saveCart(){
-  localStorage.setItem('cart',JSON.stringify(cart))
-}
+function saveCart(){ localStorage.setItem('cart',JSON.stringify(cart)) }
 
-function addToCart(id){
+function addToCart(id,qty=1){
   const prod = products.find(p=>p.id===id)
   const existing = cart.find(i=>i.id===id)
-  if(existing){ existing.qty += 1 }
-  else{ cart.push({id:prod.id,title:prod.title,price:prod.price,qty:1}) }
+  if(existing){ existing.qty += qty } else { cart.push({id:prod.id,title:prod.title,price:prod.price,qty:qty,img:prod.img,estimate:prod.estimate}) }
   saveCart(); renderCart(); updateCartCount()
 }
 
 function renderCart(){
   cartItemsEl.innerHTML = ''
-  if(cart.length===0){ cartItemsEl.innerHTML = '<p>Keranjang kosong.</p>'; cartTotalEl.textContent = '0'; return }
+  if(cart.length===0){ cartItemsEl.innerHTML = '<p>Keranjang kosong.</p>'; cartTotalEl.textContent = '0'; cartEstimateEl.textContent = '-'; return }
   let total = 0
+  let maxEst = 0
   cart.forEach(item=>{
     total += item.price*item.qty
+    maxEst = Math.max(maxEst, item.estimate || 0)
     const el = document.createElement('div')
     el.className = 'cart-item'
     el.innerHTML = `
+      <img src="${item.img}" alt="${item.title}">
       <div class="meta">
         <div><strong>${item.title}</strong></div>
-        <div>Rp ${formatPrice(item.price)}</div>
-        <div class="qty">Jumlah: <button data-action="dec" data-id="${item.id}" class="btn">-</button> <span>${item.qty}</span> <button data-action="inc" data-id="${item.id}" class="btn">+</button> <button data-action="remove" data-id="${item.id}" class="btn">Hapus</button></div>
+        <div>Rp ${formatPrice(item.price)} &times; ${item.qty}</div>
+        <div class="qty"> <button data-action="dec" data-id="${item.id}" class="btn">-</button> <span>${item.qty}</span> <button data-action="inc" data-id="${item.id}" class="btn">+</button> <button data-action="remove" data-id="${item.id}" class="btn">Hapus</button></div>
       </div>
     `
     cartItemsEl.appendChild(el)
   })
   cartTotalEl.textContent = formatPrice(total)
+  cartEstimateEl.textContent = maxEst>0? maxEst : '-'
 }
 
+// Detail modal
+function openDetail(id){
+  const p = products.find(x=>x.id===id)
+  if(!p) return
+  currentDetailId = id
+  detailImg.src = p.img
+  detailTitle.textContent = p.title
+  detailDesc.textContent = p.desc
+  detailPrice.textContent = formatPrice(p.price)
+  detailType.textContent = p.type
+  detailEstimate.textContent = p.estimate
+  detailModal.classList.remove('hidden')
+}
+
+function closeDetailModal(){ detailModal.classList.add('hidden'); currentDetailId = null }
+
+// events
 productsEl.addEventListener('click',e=>{
-  const btn = e.target.closest('.add-btn')
-  if(!btn) return
-  addToCart(Number(btn.dataset.id))
+  const add = e.target.closest('.add-btn')
+  const det = e.target.closest('.detail-btn')
+  if(add){ addToCart(Number(add.dataset.id)); return }
+  if(det){ openDetail(Number(det.dataset.id)); return }
 })
 
 cartBtn.addEventListener('click',()=>{ cartModal.classList.remove('hidden') })
@@ -101,5 +149,21 @@ checkoutBtn.addEventListener('click',()=>{
   saveCart(); renderCart(); updateCartCount(); cartModal.classList.add('hidden')
 })
 
+// detail modal actions
+closeDetail.addEventListener('click',closeDetailModal)
+detailClose.addEventListener('click',closeDetailModal)
+detailAdd.addEventListener('click',()=>{ if(currentDetailId) addToCart(currentDetailId); closeDetailModal() })
+
+// search & filter
+filterType.addEventListener('change',()=> applyFilters())
+searchInput.addEventListener('input',()=> applyFilters())
+
+function applyFilters(){
+  const q = (searchInput.value||'').toLowerCase().trim()
+  const t = filterType.value
+  let list = products.filter(p=> (t==='all' || p.type===t) && (p.title.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)))
+  renderProducts(list)
+}
+
 // init
-renderProducts(); renderCart(); updateCartCount()
+renderFilters(); renderProducts(); renderCart(); updateCartCount()
