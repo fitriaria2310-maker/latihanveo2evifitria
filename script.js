@@ -51,7 +51,7 @@ function renderProducts(list=products){
     const card = document.createElement('article')
     card.className = 'card'
     card.innerHTML = `
-      <img src="${p.img}" alt="${p.title}">
+      <img class="product-img" data-id="${p.id}" src="${p.img}" alt="${p.title}">
       <div class="meta-row"><div class="badge">${p.type}</div><div class="price">Rp ${formatPrice(p.price)}</div></div>
       <h4>${p.title}</h4>
       <p>${p.desc}</p>
@@ -153,6 +153,52 @@ checkoutBtn.addEventListener('click',()=>{
 closeDetail.addEventListener('click',closeDetailModal)
 detailClose.addEventListener('click',closeDetailModal)
 detailAdd.addEventListener('click',()=>{ if(currentDetailId) addToCart(currentDetailId); closeDetailModal() })
+
+// Lightbox: buka gambar yang diklik (produk atau detail)
+const imgLightbox = document.getElementById('img-lightbox')
+const lightboxImg = document.getElementById('lightbox-img')
+const lightboxCaption = document.getElementById('lightbox-caption')
+const lightboxClose = document.getElementById('lightbox-close')
+
+function openLightbox(src,caption){
+  lightboxImg.src = src
+  lightboxImg.alt = caption || ''
+  lightboxCaption.textContent = caption || ''
+  imgLightbox.classList.remove('hidden')
+  imgLightbox.setAttribute('aria-hidden','false')
+}
+function closeLightbox(){ imgLightbox.classList.add('hidden'); imgLightbox.setAttribute('aria-hidden','true'); lightboxImg.src = '' }
+
+// klik pada gambar produk membuka lightbox
+productsEl.addEventListener('click', e=>{
+  const img = e.target.closest('img.product-img')
+  if(img){
+    const id = Number(img.dataset.id)
+    const p = products.find(x=>x.id===id)
+    if(p) openLightbox(p.img, p.title)
+  }
+})
+
+// klik pada gambar di detail
+detailImg.addEventListener('click', ()=>{ if(detailImg.src) openLightbox(detailImg.src, detailTitle.textContent) })
+
+lightboxClose.addEventListener('click', closeLightbox)
+
+// tutup modal saat klik di luar panel (untuk cart & detail & lightbox)
+;[cartModal, detailModal, imgLightbox].forEach(modal=>{
+  modal.addEventListener('click', e=>{
+    if(e.target===modal) modal.classList.add('hidden')
+  })
+})
+
+// tutup dengan Escape
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    if(!cartModal.classList.contains('hidden')) cartModal.classList.add('hidden')
+    if(!detailModal.classList.contains('hidden')) detailModal.classList.add('hidden')
+    if(!imgLightbox.classList.contains('hidden')) closeLightbox()
+  }
+})
 
 // search & filter
 filterType.addEventListener('change',()=> applyFilters())
